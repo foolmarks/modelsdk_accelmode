@@ -1,0 +1,256 @@
+'''
+**************************************************************************
+||                        SiMa.ai CONFIDENTIAL                          ||
+||   Unpublished Copyright (c) 2022-2023 SiMa.ai, All Rights Reserved.  ||
+**************************************************************************
+ NOTICE:  All information contained herein is, and remains the property of
+ SiMa.ai. The intellectual and technical concepts contained herein are 
+ proprietary to SiMa and may be covered by U.S. and Foreign Patents, 
+ patents in process, and are protected by trade secret or copyright law.
+
+ Dissemination of this information or reproduction of this material is 
+ strictly forbidden unless prior written permission is obtained from 
+ SiMa.ai.  Access to the source code contained herein is hereby forbidden
+ to anyone except current SiMa.ai employees, managers or contractors who 
+ have executed Confidentiality and Non-disclosure agreements explicitly 
+ covering such access.
+
+ The copyright notice above does not evidence any actual or intended 
+ publication or disclosure  of  this source code, which includes information
+ that is confidential and/or proprietary, and is a trade secret, of SiMa.ai.
+
+ ANY REPRODUCTION, MODIFICATION, DISTRIBUTION, PUBLIC PERFORMANCE, OR PUBLIC
+ DISPLAY OF OR THROUGH USE OF THIS SOURCE CODE WITHOUT THE EXPRESS WRITTEN
+ CONSENT OF SiMa.ai IS STRICTLY PROHIBITED, AND IN VIOLATION OF APPLICABLE 
+ LAWS AND INTERNATIONAL TREATIES. THE RECEIPT OR POSSESSION OF THIS SOURCE
+ CODE AND/OR RELATED INFORMATION DOES NOT CONVEY OR IMPLY ANY RIGHTS TO 
+ REPRODUCE, DISCLOSE OR DISTRIBUTE ITS CONTENTS, OR TO MANUFACTURE, USE, OR
+ SELL ANYTHING THAT IT  MAY DESCRIBE, IN WHOLE OR IN PART.                
+
+**************************************************************************
+'''
+
+
+'''
+Quantize, evaluate and compile model
+'''
+
+
+'''
+Author: Mark Harvey
+'''
+
+
+import onnx
+import os, sys, shutil
+import argparse
+import numpy as np
+import tarfile 
+import logging
+
+# Palette-specific imports
+from afe.load.importers.general_importer import ImporterParams, onnx_source
+from afe.apis.defines import default_quantization
+from afe.ir.tensor_type import ScalarType
+from afe.apis.loaded_net import load_model
+from afe.apis.error_handling_variables import enable_verbose_error_messages
+from afe.apis.release_v1 import get_model_sdk_version
+from afe.core.utils import length_hinted
+
+
+import config as cfg
+ 
+height = cfg.height
+width = cfg.width
+channels= cfg.channels
+ignore_class = cfg.ignore_class
+DIVIDER = cfg.DIVIDER
+
+
+# pre-processing for quantizing and test
+def _preprocessing(image):
+  '''
+  Image preprocess, add batchsize dimension
+  '''
+  image = cfg.preprocess(image)
+  return image.reshape([1,height,width,channels])
+
+
+def implement(args):
+
+  # Uncomment the following line to enable verbose error messages.
+  enable_verbose_error_messages()
+
+  # make destination folder
+  base_name = os.path.basename(args.model_path)
+  output_model_name, _ = os.path.splitext(base_name)
+
+  output_path = os.path.join(args.build_dir,output_model_name)
+  os.makedirs(output_path,exist_ok=True)
+  print('Results will be written to',output_path,flush=True)
+
+  '''
+  Interrogate ONNX model for input names, shapes
+  '''
+  model = onnx.load(args.model_path)
+  input_names_list=[node.name for node in model.graph.input]
+  input_shapes_list = [tuple(d.dim_value for d in _input.type.tensor_type.shape.dim) for _input in model.graph.input]
+  print('Model inputs:')
+  for n,s in zip(input_names_list,input_shapes_list):
+    print(f' {n}  {s}')
+
+  # this assumes that there is only one input of format NCHW
+  height = input_shapes_list[0][2]
+  width = input_shapes_list[0][3]
+  
+  '''
+  Load the floating-point ONNX model
+  Refer to online documentation: https://developer.sima.ai/apps?id=22ef42b1-3652-4cc7-8019-16b86910ed53
+  '''
+  # input types & shapes are dictionaries
+  # input types dictionary: each key,value pair is an input name (string) and a type
+  # input shapes dictionary: each key,value pair is an input name (string) and a shape (tuple)
+  input_shapes_dict={}
+  input_types_dict={}
+  for n,s in zip(input_names_list,input_shapes_list):
+     input_shapes_dict[n]=s
+     input_types_dict[n]=ScalarType.float32
+     
+  # importer parameters
+  importer_params: ImporterParams = onnx_source(model_path=args.model_path,
+                                                shape_dict=input_shapes_dict,
+                                                dtype_dict=input_types_dict)
+  
+  # load ONNX floating-point model into SiMa's LoadedNet format
+  loaded_net = load_model(importer_params)
+  print(f'Loaded model from {args.model_path}')
+
+  '''
+  Prepare calibration data
+    - create list of dictionaries
+    - Each dictionary key is an input name, value is a preprocessed data sample
+  '''
+  dataset_path = './train_dataset.npz'
+  assert (os.path.exists(dataset_path)), f'Did not find {dataset_path}'
+  dataset_f = np.load(dataset_path)
+  data = dataset_f['x']
+
+
+  calib_data=[]
+  input_types=[]
+  calib_images = min(args.num_calib_images, data.shape[0])
+
+  for input_name in input_names_list:
+    inputs = dict()
+    for i in range(calib_images):
+      inputs[input_name] = _preprocessing(data[i])
+      calib_data.append(inputs)
+
+
+  '''
+  Quantize
+  '''
+  print(f'Quantizing with {calib_images} calibration samples')
+
+
+  quant_model = loaded_net.quantize(calibration_data=length_hinted(calib_images,calib_data),
+                                    quantization_config=default_quantization,
+                                    model_name=output_model_name,
+                                    log_level=logging.ERROR)
+
+  quant_model.save(model_name=output_model_name, output_directory=output_path)
+
+
+  '''
+  Prepare test data
+    - create list of dictionaries
+    - Each dictionary key is an input name, value is a preprocessed data sample
+  '''
+  dataset_path = './validation_dataset.npz'
+  assert (os.path.exists(dataset_path)), f'Did not find {dataset_path}'
+  dataset_f = np.load(dataset_path)
+  data = dataset_f['x']
+  labels = dataset_f['y']
+
+  test_images = min(args.num_test_images, data.shape[0])
+
+
+  '''
+  Execute quantized model
+  '''
+  total_matching_pixels=0
+  total_ignore_pixels=0
+  dest_folder = f'{args.build_dir}/quant_pred'
+  if (os.path.exists(dest_folder)):
+    shutil.rmtree(dest_folder, ignore_errors=False)
+  os.makedirs(dest_folder)
+
+  for i in range(test_images):
+
+    inputs = dict() 
+    inputs[input_name] = _preprocessing(data[i])
+
+    quantized_net_output = quant_model.execute(inputs, fast_mode=True)
+    if (quantized_net_output[0].shape[-1] > 1):
+      quantized_net_output = np.argmax(quantized_net_output[0],axis=-1,keepdims=True)
+    else:
+      quantized_net_output = quantized_net_output[0]  
+
+    '''
+    Simple acc check - replace with a standard metric like mIoU.
+    Count number of matching pixels between prediction & label, ignore_class is not counted
+    '''
+    matching_pixels,ignore_pixels=cfg.pixel_match_count(quantized_net_output, labels[i], ignore_class)
+    total_matching_pixels+=matching_pixels
+    total_ignore_pixels+=ignore_pixels
+
+    # prediction as image and write to PNG file
+    _ = cfg.write_image(quantized_net_output,labels[i],dest_folder,i,ignore_class)
+
+  total_pixels=(test_images*height*width) - total_ignore_pixels
+  accuracy = (total_matching_pixels/total_pixels)*100
+  print(f'Pixel matching accuracy: {accuracy:.2f}%')
+
+
+  '''
+  Compile
+  '''
+  print('Compiling with batch size set to',args.batch_size,flush=True)
+  quant_model.compile(output_path=output_path,
+                      batch_size=args.batch_size,
+                      log_level=logging.ERROR)  
+
+  print(f'Wrote compiled model to {output_path}/{output_model_name}_mpk.tar.gz')
+
+  model = tarfile.open(f'{output_path}/{output_model_name}_mpk.tar.gz')
+  model.extractall(f'{output_path}')
+  model.close() 
+
+
+  return
+
+
+
+def run_main():
+  
+  # construct the argument parser and parse the arguments
+  ap = argparse.ArgumentParser()
+  ap.add_argument('-bd', '--build_dir',         type=str, default='build', help='Path of build folder. Default is build')
+  ap.add_argument('-m',  '--model_path',        type=str, default='segmenter.onnx', help='path to FP model')
+  ap.add_argument('-b',  '--batch_size',        type=int, default=1, help='requested batch size. Default is 1')
+  ap.add_argument('-om', '--output_model_name', type=str, default='segmenter', help="Output model name. Default is segmenter")
+  ap.add_argument('-ci', '--num_calib_images',  type=int, default=50, help='Number of calibration images. Default is 50')
+  ap.add_argument('-ti', '--num_test_images',   type=int, default=10, help='Number of test images. Default is 10')
+  args = ap.parse_args()
+
+  print('\n'+DIVIDER,flush=True)
+  print('Model SDK version',get_model_sdk_version())
+  print(sys.version,flush=True)
+  print(DIVIDER,flush=True)
+
+
+  implement(args)
+
+
+if __name__ == '__main__':
+    run_main()
