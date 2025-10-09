@@ -50,7 +50,7 @@ import logging
 
 # Palette-specific imports
 from afe.load.importers.general_importer import ImporterParams, onnx_source
-from afe.apis.defines import default_quantization
+from afe.apis.defines import default_quantization, gen1_target, gen2_target
 from afe.ir.tensor_type import ScalarType
 from afe.apis.loaded_net import load_model
 from afe.apis.error_handling_variables import enable_verbose_error_messages
@@ -122,7 +122,8 @@ def implement(args):
                                                 dtype_dict=input_types_dict)
   
   # load ONNX floating-point model into SiMa's LoadedNet format
-  loaded_net = load_model(importer_params)
+  target = gen2_target if args.generation == 2 else gen1_target
+  loaded_net = load_model(importer_params,target=target)
   print(f'Loaded model from {args.model_path}')
 
   '''
@@ -241,6 +242,7 @@ def run_main():
   ap.add_argument('-om', '--output_model_name', type=str, default='segmenter', help="Output model name. Default is segmenter")
   ap.add_argument('-ci', '--num_calib_images',  type=int, default=50, help='Number of calibration images. Default is 50')
   ap.add_argument('-ti', '--num_test_images',   type=int, default=10, help='Number of test images. Default is 10')
+  ap.add_argument('-g',  '--generation',        type=int, default=2, choices=[1,2], help='Target device: 1 = DaVinci, 2 = Modalix. Default is 2')    
   args = ap.parse_args()
 
   print('\n'+DIVIDER,flush=True)

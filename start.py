@@ -77,7 +77,7 @@ def find_available_port(start_port=49152, end_port=65535):
 def main():
     try:
         # Parameters
-        VERSION="1.6.0_Palette_SDK_master_B202"
+        VERSION="1.7.0_Palette_SDK_master_B219"
         IMAGE = "palettesdk"
         CONTAINER_NAME = f"{IMAGE}_{VERSION.replace('.', '_')}"
         PORT = find_available_port()

@@ -4,13 +4,54 @@ This tutorial shows how to run a model on a hardware platform using the .execute
 
 
 
-## Numpy files ##
+## Datasets as Numpy files ##
 
-For convenience, two numpy files are provided - train_dataset.npz and validation_dataset.npz.
+For convenience, the data is provided as two numpy files - train_dataset.npz and validation_dataset.npz.
 
 Each file contains two numpy arrays, the 'x' array contains the images and the 'y' array contains the segmentation masks (i.e. class labels for each pixel).
 
 
+## Starting the Palette SDK docker container ##
+
+The docker container can be started by running the start.py script from the command line:
+
+```shell
+python start.py
+```
+When asked for the work directory, just respond with `./`
+
+
+The output in the console should look something like this:
+
+```shell
+/home/projects/modelsdk_accelmode/./start.py:111: SyntaxWarning: invalid escape sequence '\P'
+  docker_start_cmd = 'cmd.exe /c "start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe""'
+Set no_proxy to localhost,127.0.0.0
+Using port 49152 for the installation.
+Checking if the container is already running...
+Enter work directory [/home/projects/modelsdk_accelmode]: ./
+Starting the container: palettesdk_1_7_0_Palette_SDK_master_B219
+Checking SiMa SDK Bridge Network...
+SiMa SDK Bridge Network found.
+Creating and starting the Docker container...
+f72ae89b3c12494291a4b9f621f8d28f565705b8dd638fc058a79bfb5ce5e73c
+Successfully copied 3.07kB to /home/projects/modelsdk_accelmode/passwd.txt
+Successfully copied 3.07kB to palettesdk_1_7_0_Palette_SDK_master_B219:/etc/passwd
+Successfully copied 2.56kB to /home/projects/modelsdk_accelmode/shadow.txt
+Successfully copied 2.56kB to palettesdk_1_7_0_Palette_SDK_master_B219:/etc/shadow
+Successfully copied 2.56kB to /home/projects/modelsdk_accelmode/group.txt
+Successfully copied 2.56kB to palettesdk_1_7_0_Palette_SDK_master_B219:/etc/group
+Successfully copied 3.58kB to /home/projects/modelsdk_accelmode/sudoers.txt
+Successfully copied 3.58kB to palettesdk_1_7_0_Palette_SDK_master_B219:/etc/sudoers
+Successfully copied 2.05kB to palettesdk_1_7_0_Palette_SDK_master_B219:/home/docker/.simaai/.port
+user@f72ae89b3c12:/home$
+```
+
+Navigate into the working directory:
+
+```shell
+cd docker/sima-cli
+```
 
 
 ## Execute Floating-Point ONNX model ##
@@ -73,8 +114,8 @@ The expected console output is like this:
 
 ```shell
 --------------------------------------------------
-Model SDK version 1.6.0
-3.10.12 (main, May 15 2025, 05:38:06) [GCC 11.4.0]
+Model SDK version 1.7.0
+3.10.12 (main, Aug  6 2025, 18:09:36) [GCC 11.4.0]
 --------------------------------------------------
 Results will be written to build/segmenter
 Model inputs:
@@ -84,7 +125,7 @@ Quantizing with 5 calibration samples
 Calibration Progress: |██████████████████████████████| 100.0% 5|5 Complete.  5/5
 Running Calibration ...DONE
 Running quantization ...DONE
-Pixel matching accuracy: 95.24%
+Pixel matching accuracy: 95.27%
 Compiling with batch size set to 1
 Wrote compiled model to build/segmenter/segmenter_mpk.tar.gz
 ```
@@ -96,7 +137,7 @@ Run the model directly on the target board. This requires the target board to be
 
 
 ```shell
-python run_hardware.py -p edgeai -u sima -hn 192.168.8.20
+python run_hardware.py -p edgeai -u sima -hn 192.168.1.20
 ```
 
 
@@ -105,13 +146,13 @@ The images are written into build/accel_pred folder:
 <img src="./images/hw_pred_0.png" alt="" style="height: 250px; width:500px;"/>
 
 
-The output in the console will be soemthing like this:
+The output in the console will be something like this:
 
 
 ```shell
 --------------------------------------------------
-Model SDK version 1.6.0
-3.10.12 (main, May 15 2025, 05:38:06) [GCC 11.4.0]
+Model SDK version 1.7.0
+3.10.12 (main, Aug  6 2025, 18:09:36) [GCC 11.4.0]
 --------------------------------------------------
 Loading segmenter quantized model from build/segmenter
 Executing quantized model in accelerator mode...
@@ -123,7 +164,46 @@ ZMQ Connection successful.
 Executing model graph in accelerator mode:
 Progress: |██████████████████████████████| 100.0% 5|5 Complete.  5/5
 Model is executed in accelerator mode.
-Pixel matching accuracy: 95.24%
+Pixel matching accuracy: 95.27%
+```
+
+
+## Benchmarking model on hardware ##
+
+The model can be benchmarked on the target board:
+
+
+
+```shell
+python ./get_fps/network_eval/network_eval.py \
+    --model_file_path   ./build/segmenter/segmenter_stage1_mla.elf \
+    --mpk_json_path     ./build/segmenter/segmenter_mpk.json \
+    --dv_host           192.168.1.20 \
+    --dv_user           sima \
+    --image_size        1025 2048 3 \
+    --verbose \
+    --bypass_tunnel \
+    --max_frames        100 \
+    --bypass_tunnel \
+    --batch_size        1
+```
+
+  The measured frame rate will be printed in the console:
+
+```shell
+Running model in MLA-only mode
+Copying the model files to DevKit
+FPS = 92
+FPS = 93
+FPS = 93
+FPS = 93
+FPS = 93
+FPS = 93
+FPS = 93
+FPS = 93
+FPS = 93
+FPS = 93
+Ran 100 frame(s)
 ```
 
 
@@ -140,6 +220,7 @@ Pixel matching accuracy: 95.24%
 * run_hardware.py - run model on devkit and write predictions to PNG files.
 * train_dataset.npz - images and masks from the training dataset
 * validation_dataset.npz - images and masks from the validation dataset
+* get_fps - folder with scripts for executing benchmarking
 
 
 
