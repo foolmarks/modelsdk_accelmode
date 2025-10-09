@@ -6,7 +6,7 @@ This tutorial shows how to run a model on a hardware platform using the .execute
 
 ## Datasets as Numpy files ##
 
-For convenience, the data is provided as two numpy files - train_dataset.npz and validation_dataset.npz.
+For convenience, the training and validation data is provided as two numpy files - train_dataset.npz and validation_dataset.npz.
 
 Each file contains two numpy arrays, the 'x' array contains the images and the 'y' array contains the segmentation masks (i.e. class labels for each pixel).
 
@@ -213,7 +213,6 @@ Ran 100 frame(s)
 
 * .gitignore - list of files to exclude from versioning.
 * start.py, stop.py - start & stop SDk docker.
-* commands.txt - list of commands used during the flow (just for easy copy & paste)
 * config.py - configurations and common functions.
 * run_onnx.py - execute the floating-point ONNX model, write predictions to PNG files.
 * run_modelsdk.py - quantize, evaluate the quantized model and write predictions to PNG files, compile.
