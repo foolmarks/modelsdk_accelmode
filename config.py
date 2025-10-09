@@ -58,14 +58,6 @@ means = np.array([0.485,0.456,0.406], dtype=np.float32)
 std_dev = np.array([0.229,0.224,0.225],dtype=np.float32)
 
 
-#dataset_name='cityscapes/semantic_segmentation'
-#train_split='train'
-#test_split='validation'
-#dataset_dir='data_cityscapes'
-#
-#img_datapoint='image_left'
-#msk_datapoint='segmentation_label'
-
 ignore_class=255
 
 '''
@@ -186,14 +178,45 @@ def mask_to_rgb(mask):
 
 
 
-def preprocess(image=None):
-  '''
-  Image pre-processing
-  '''
-  image = np.divide(image,scale)
-  image = np.subtract(image,means)
-  image = np.divide(image,std_dev)
-  return image
+#def preprocess(image=None, transpose=False):
+#  '''
+#  Image pre-processing
+#  Optional transpose to NCHW format
+#  '''
+#  image = np.divide(image,scale)
+#  image = np.subtract(image,means)
+#  image = np.divide(image,std_dev)
+#  if (transpose):
+#    image = np.transpose(image, axes=[0, 3, 1, 2])
+#  return image
+
+
+def preprocess(image=None, transpose=False):
+    '''
+    Image pre-processing
+    Optional transpose to NCHW format.
+    Performs operations in-place on a single working copy to avoid temporaries.
+    Expects globals: scale (scalar), means (scalar or 1D per-channel), std_dev (scalar or 1D per-channel).
+    '''
+    if image is None:
+        raise ValueError("image must not be None")
+
+    # Make exactly one working copy with a float dtype; all ops reuse this buffer.
+    x = np.array(image, dtype=np.float32, copy=True)  # single copy
+
+    # x = (x / scale - means) / std_dev, but done stepwise with ufuncs + out= to avoid temporaries
+    np.divide(x, scale, out=x)  # x /= scale
+
+    # Broadcast-safe subtract/divide; supports scalar or per-channel arrays (length C on last axis)
+    # Using in-place ops keeps memory use flat.
+    x -= np.asarray(means, dtype=x.dtype)
+    np.divide(x, np.asarray(std_dev, dtype=x.dtype), out=x)
+
+    if transpose:
+        # NHWC -> NCHW (returns a view when possible; no data copy)
+        x = np.transpose(x, (0, 3, 1, 2))
+
+    return x
 
 
 def pixel_match_count(prediction, label, ignore_class):
@@ -210,10 +233,6 @@ def write_image(mask,label,dest_folder,index,ignore_class):
   '''
   create output image
   '''
-  # overwrite mask with ignore_class pixels
-  # not realistic for real-world system
-#  mask = np.where(label==ignore_class,label,mask)
-#  mask = np.reshape(mask,(height,width,1))
   overlay = mask_to_rgb(mask) 
   filepath = f'{dest_folder}/pred_{str(index)}.png'
   overlay = cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR)

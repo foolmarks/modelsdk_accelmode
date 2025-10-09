@@ -112,6 +112,8 @@ def implement(args):
 
   total_matching_pixels=0
   total_ignore_pixels=0
+
+  # prepare output folder, remove any previous results
   dest_folder = f'{args.build_dir}/accel_pred'
   if (os.path.exists(dest_folder)):
     shutil.rmtree(dest_folder, ignore_errors=False)
@@ -165,7 +167,7 @@ def run_main():
   ap.add_argument('-ti', '--num_test_images', type=int, default=10, help='Number of test images. Default is 10')
   ap.add_argument('-u',  '--username',        type=str, default='root', help='Target device user name. Default is root')
   ap.add_argument('-p',  '--password',        type=str, default='commitanddeliver', help='Target device password. Default is commitanddeliver')
-  ap.add_argument('-hn', '--hostname',        type=str, default='192.168.8.20', help='Target device IP address. Default is 192.168.8.20')
+  ap.add_argument('-hn', '--hostname',        type=str, default='192.168.1.20', help='Target device IP address. Default is 192.168.1.20')
   args = ap.parse_args()
 
   print('\n'+DIVIDER,flush=True)

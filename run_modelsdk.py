@@ -99,13 +99,9 @@ def implement(args):
   for n,s in zip(input_names_list,input_shapes_list):
     print(f' {n}  {s}')
 
-  # this assumes that there is only one input of format NCHW
-  height = input_shapes_list[0][2]
-  width = input_shapes_list[0][3]
   
   '''
   Load the floating-point ONNX model
-  Refer to online documentation: https://developer.sima.ai/apps?id=22ef42b1-3652-4cc7-8019-16b86910ed53
   '''
   # input types & shapes are dictionaries
   # input types dictionary: each key,value pair is an input name (string) and a type
@@ -115,6 +111,7 @@ def implement(args):
   for n,s in zip(input_names_list,input_shapes_list):
      input_shapes_dict[n]=s
      input_types_dict[n]=ScalarType.float32
+
      
   # importer parameters
   importer_params: ImporterParams = onnx_source(model_path=args.model_path,
@@ -131,16 +128,17 @@ def implement(args):
     - create list of dictionaries
     - Each dictionary key is an input name, value is a preprocessed data sample
   '''
-  dataset_path = './train_dataset.npz'
+  # unpack the numpy file
+  dataset_path = './calib_dataset.npz'
   assert (os.path.exists(dataset_path)), f'Did not find {dataset_path}'
   dataset_f = np.load(dataset_path)
   data = dataset_f['x']
 
-
   calib_data=[]
-  input_types=[]
   calib_images = min(args.num_calib_images, data.shape[0])
 
+  # make a list of dictionaries
+  # key = input name, value = pre-processed calibration data
   for input_name in input_names_list:
     inputs = dict()
     for i in range(calib_images):
@@ -159,7 +157,9 @@ def implement(args):
                                     model_name=output_model_name,
                                     log_level=logging.ERROR)
 
+  # optional save of quantized model - saved model can be opened with Netron
   quant_model.save(model_name=output_model_name, output_directory=output_path)
+  print(f'Quantized model saved to {output_path}/{output_model_name}.sima.json')
 
 
   '''
@@ -219,7 +219,7 @@ def implement(args):
   print('Compiling with batch size set to',args.batch_size,flush=True)
   quant_model.compile(output_path=output_path,
                       batch_size=args.batch_size,
-                      log_level=logging.ERROR)  
+                      log_level=logging.INFO)  
 
   print(f'Wrote compiled model to {output_path}/{output_model_name}_mpk.tar.gz')
 

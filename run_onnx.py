@@ -32,7 +32,19 @@
 
 
 '''
-Evaluate floating-point ONNX model
+Run ONNX semantic-segmentation inference on a small validation set and
+report pixel-wise accuracy (ignoring a specified class). Predictions and
+label overlays are written to disk.
+
+Inputs:
+- ./validation_dataset.npz : contains arrays 'x' (images) and 'y' (labels)
+- ONNX model: path provided via --model_path
+
+Outputs:
+- <build_dir>/onnx_pred/ : PNGs of predictions (and any visualizations from cfg)
+
+Example Usage:
+    python run_onnx.py -m ./segmenter.onnx -ti 10 -bd build
 '''
 
 
@@ -60,18 +72,6 @@ DIVIDER = cfg.DIVIDER
 
 
 
-# pre-processing
-def _preprocessing(image):
-  '''
-  Image preprocess
-  '''
-  image = cfg.preprocess(image)
-  image = np.transpose(image, axes=[0, 3, 1, 2])
-  return np.float32(image)
-
-
-
-
 def implement(args):
 
   '''
@@ -85,28 +85,37 @@ def implement(args):
   test_images = min(args.num_test_images, data.shape[0])
 
 
+  # Load & validate ONNX model
   onnx_model = onnx.load(args.model_path)
   onnx.checker.check_model(onnx_model)
 
-
+# Create an ONNX Runtime inference session
   ort_sess = ort.InferenceSession(args.model_path)
 
   total_matching_pixels=0
   total_ignore_pixels=0
+
+  # Prepare output directory
+  # Remove any existing predictions to avoid mixing runs
   dest_folder = f'{args.build_dir}/onnx_pred'
   if (os.path.exists(dest_folder)):
     shutil.rmtree(dest_folder, ignore_errors=False)
   os.makedirs(dest_folder)
   
+  '''
+  ONNX inference
+  Loop over test images
+  '''
   for i in range(test_images):
 
-    image = _preprocessing(data[i])
+    # preprocess image, transpose to NCHW
+    image = cfg.preprocess(data[i],transpose=True)
     
     # run inference - outputs NCHW format
     pred = ort_sess.run(None, {'input_': image })
     prediction = pred[0]
 
-    # post-processing - change to NHWC & argmax reduce
+    # post-processing - change to NHWC & reduce with argmax
     prediction = np.transpose(prediction, axes=[0, 2, 3, 1])
     if prediction.shape[-1] > 1:
       prediction = np.argmax(prediction,axis=-1,keepdims=True)
@@ -119,7 +128,8 @@ def implement(args):
     # write prediction to PNG file
     _ = cfg.write_image(prediction,labels[i],dest_folder,i,ignore_class)
 
-  # pixel accuracy is number of pixels that match between prediction and ground truth mask. 
+  # pixel accuracy is number of pixels that match between prediction and ground truth mask.
+  # This pixel-wise accuracy is calculated across all test images 
   accuracy = (total_matching_pixels/((test_images*height*width)-total_ignore_pixels))*100
   print(f'Pixel matching accuracy: {accuracy:.2f}%')
 
@@ -135,9 +145,9 @@ def run_main():
   ap.add_argument('-bd', '--build_dir',         type=str, default='build', help='Path of build folder. Default is build')
   ap.add_argument('-m',  '--model_path',        default='./segmenter.onnx', type=str, help='path to ONNX model')
   ap.add_argument('-ti', '--num_test_images',   type=int, default=10, help='Number of test images. Default is 10')
-
   args = ap.parse_args()
 
+  # print Python version
   print('\n'+DIVIDER,flush=True)
   print(sys.version,flush=True)
   print(DIVIDER,flush=True)

@@ -1,12 +1,18 @@
 # Running a Model on a Hardware Platform #
 
-This tutorial shows how to run a model on a hardware platform using the .execute_in_accelerator_mode() API.
+This tutorial demonstrates the following steps:
+
+  * Running a trained FP32 ONNX model to provide baseline results.
+  * Loading, Quantizing and Compiling of the trained FP32 model.
+  * Evaluation of the quantized model.
+  * Benchmarking of the compiled model.
+  * Executing a compiled model on a hardware platform.
 
 
 
 ## Datasets as Numpy files ##
 
-For convenience, the training and validation data is provided as two numpy files - train_dataset.npz and validation_dataset.npz.
+For convenience, the calibration and validation data is provided as two numpy files - calib_dataset.npz and validation_dataset.npz.
 
 Each file contains two numpy arrays, the 'x' array contains the images and the 'y' array contains the segmentation masks (i.e. class labels for each pixel).
 
@@ -137,7 +143,7 @@ Run the model directly on the target board. This requires the target board to be
 
 
 ```shell
-python run_hardware.py -p edgeai -u sima -hn 192.168.1.20
+python run_hardware.py -hn 192.168.1.20
 ```
 
 
@@ -180,11 +186,10 @@ python ./get_fps/network_eval/network_eval.py \
     --mpk_json_path     ./build/segmenter/segmenter_mpk.json \
     --dv_host           192.168.1.20 \
     --dv_user           sima \
-    --image_size        1025 2048 3 \
+    --image_size        1024 2048 3 \
     --verbose \
     --bypass_tunnel \
     --max_frames        100 \
-    --bypass_tunnel \
     --batch_size        1
 ```
 
@@ -217,7 +222,7 @@ Ran 100 frame(s)
 * run_onnx.py - execute the floating-point ONNX model, write predictions to PNG files.
 * run_modelsdk.py - quantize, evaluate the quantized model and write predictions to PNG files, compile.
 * run_hardware.py - run model on devkit and write predictions to PNG files.
-* train_dataset.npz - images and masks from the training dataset
+* calib_dataset.npz - images and masks from the training dataset used in calibration
 * validation_dataset.npz - images and masks from the validation dataset
 * get_fps - folder with scripts for executing benchmarking
 
