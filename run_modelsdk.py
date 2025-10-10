@@ -162,28 +162,26 @@ def implement(args):
   print(f'Quantized model saved to {output_path}/{output_model_name}.sima.json')
 
 
-  '''
-  Prepare test data
-    - create list of dictionaries
-    - Each dictionary key is an input name, value is a preprocessed data sample
-  '''
-  dataset_path = './validation_dataset.npz'
-  assert (os.path.exists(dataset_path)), f'Did not find {dataset_path}'
-  dataset_f = np.load(dataset_path)
-  data = dataset_f['x']
-  labels = dataset_f['y']
-
-  test_images = min(args.num_test_images, data.shape[0])
-
 
   '''
   Execute, evaluate quantized model
   '''
   if (args.evaluate):
 
+    # unpack validation data
+    dataset_path = './validation_dataset.npz'
+    assert (os.path.exists(dataset_path)), f'Did not find {dataset_path}'    
+    dataset_f = np.load(dataset_path)
+    data = dataset_f['x']
+    labels = dataset_f['y']
+
+    # number of test images
+    test_images = min(args.num_test_images, data.shape[0])
+
     total_matching_pixels=0
     total_ignore_pixels=0
     
+    # make folder for output images, delete any previous results
     dest_folder = f'{args.build_dir}/quant_pred'
     if (os.path.exists(dest_folder)):
       shutil.rmtree(dest_folder, ignore_errors=False)
