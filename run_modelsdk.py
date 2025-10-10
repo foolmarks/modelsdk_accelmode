@@ -177,40 +177,43 @@ def implement(args):
 
 
   '''
-  Execute quantized model
+  Execute, evaluate quantized model
   '''
-  total_matching_pixels=0
-  total_ignore_pixels=0
-  dest_folder = f'{args.build_dir}/quant_pred'
-  if (os.path.exists(dest_folder)):
-    shutil.rmtree(dest_folder, ignore_errors=False)
-  os.makedirs(dest_folder)
+  if (args.evaluate):
 
-  for i in range(test_images):
+    total_matching_pixels=0
+    total_ignore_pixels=0
+    
+    dest_folder = f'{args.build_dir}/quant_pred'
+    if (os.path.exists(dest_folder)):
+      shutil.rmtree(dest_folder, ignore_errors=False)
+    os.makedirs(dest_folder)
 
-    inputs = dict() 
-    inputs[input_name] = _preprocessing(data[i])
+    for i in range(test_images):
 
-    quantized_net_output = quant_model.execute(inputs, fast_mode=True)
-    if (quantized_net_output[0].shape[-1] > 1):
-      quantized_net_output = np.argmax(quantized_net_output[0],axis=-1,keepdims=True)
-    else:
-      quantized_net_output = quantized_net_output[0]  
+      inputs = dict() 
+      inputs[input_name] = _preprocessing(data[i])
 
-    '''
-    Simple acc check - replace with a standard metric like mIoU.
-    Count number of matching pixels between prediction & label, ignore_class is not counted
-    '''
-    matching_pixels,ignore_pixels=cfg.pixel_match_count(quantized_net_output, labels[i], ignore_class)
-    total_matching_pixels+=matching_pixels
-    total_ignore_pixels+=ignore_pixels
+      quantized_net_output = quant_model.execute(inputs, fast_mode=True)
+      if (quantized_net_output[0].shape[-1] > 1):
+        quantized_net_output = np.argmax(quantized_net_output[0],axis=-1,keepdims=True)
+      else:
+        quantized_net_output = quantized_net_output[0]  
 
-    # prediction as image and write to PNG file
-    _ = cfg.write_image(quantized_net_output,labels[i],dest_folder,i,ignore_class)
+      '''
+      Simple pixelwise accuracy check - could be replaced with a standard metric like mIoU.
+      Count number of matching pixels between prediction & label, ignore_class is not counted
+      '''
+      matching_pixels,ignore_pixels=cfg.pixel_match_count(quantized_net_output, labels[i], ignore_class)
+      total_matching_pixels+=matching_pixels
+      total_ignore_pixels+=ignore_pixels
 
-  total_pixels=(test_images*height*width) - total_ignore_pixels
-  accuracy = (total_matching_pixels/total_pixels)*100
-  print(f'Pixel matching accuracy: {accuracy:.2f}%')
+      # prediction as image and write to PNG file
+      _ = cfg.write_image(quantized_net_output,dest_folder,i)
+
+    total_pixels=(test_images*height*width) - total_ignore_pixels
+    accuracy = (total_matching_pixels/total_pixels)*100
+    print(f'Pixel matching accuracy: {accuracy:.2f}%')
 
 
   '''
@@ -242,7 +245,8 @@ def run_main():
   ap.add_argument('-om', '--output_model_name', type=str, default='segmenter', help="Output model name. Default is segmenter")
   ap.add_argument('-ci', '--num_calib_images',  type=int, default=50, help='Number of calibration images. Default is 50')
   ap.add_argument('-ti', '--num_test_images',   type=int, default=10, help='Number of test images. Default is 10')
-  ap.add_argument('-g',  '--generation',        type=int, default=2, choices=[1,2], help='Target device: 1 = DaVinci, 2 = Modalix. Default is 2')    
+  ap.add_argument('-g',  '--generation',        type=int, default=2, choices=[1,2], help='Target device: 1 = DaVinci, 2 = Modalix. Default is 2')
+  ap.add_argument('-e',  '--evaluate',          action="store_true", default=False, help="If set, evaluate the quantized model") 
   args = ap.parse_args()
 
   print('\n'+DIVIDER,flush=True)

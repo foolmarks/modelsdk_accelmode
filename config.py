@@ -178,18 +178,6 @@ def mask_to_rgb(mask):
 
 
 
-#def preprocess(image=None, transpose=False):
-#  '''
-#  Image pre-processing
-#  Optional transpose to NCHW format
-#  '''
-#  image = np.divide(image,scale)
-#  image = np.subtract(image,means)
-#  image = np.divide(image,std_dev)
-#  if (transpose):
-#    image = np.transpose(image, axes=[0, 3, 1, 2])
-#  return image
-
 
 def preprocess(image=None, transpose=False):
     '''
@@ -221,7 +209,7 @@ def preprocess(image=None, transpose=False):
 
 def pixel_match_count(prediction, label, ignore_class):
   '''
-  Simple acc check - replace with a standard metric like mIoU.
+  Pixelwise accuracy check
   Count number of matching pixels between prediction & label.
   '''
   ignore_pixels=np.count_nonzero(label==ignore_class)
@@ -229,7 +217,7 @@ def pixel_match_count(prediction, label, ignore_class):
   return matching_pixels, ignore_pixels
 
 
-def write_image(mask,label,dest_folder,index,ignore_class):
+def write_image(mask,dest_folder,index):
   '''
   create output image
   '''
@@ -237,6 +225,5 @@ def write_image(mask,label,dest_folder,index,ignore_class):
   filepath = f'{dest_folder}/pred_{str(index)}.png'
   overlay = cv2.cvtColor(overlay, cv2.COLOR_RGB2BGR)
   return (cv2.imwrite(filepath, overlay))
-
 
 

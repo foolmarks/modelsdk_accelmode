@@ -147,7 +147,7 @@ def implement(args):
     total_ignore_pixels+=ignore_pixels
 
     # prediction as image and write to PNG file
-    _ = cfg.write_image(prediction,labels[i],dest_folder,i,ignore_class)
+    _ = cfg.write_image(prediction,dest_folder,i)
 
 
   total_pixels=(test_images*height*width) - total_ignore_pixels
@@ -165,8 +165,8 @@ def run_main():
   ap.add_argument('-bd', '--build_dir',       type=str, default='build', help='Path of build folder. Default is build')
   ap.add_argument('-m',  '--model_name',      type=str, default='segmenter', help='quantized model name')
   ap.add_argument('-ti', '--num_test_images', type=int, default=10, help='Number of test images. Default is 10')
-  ap.add_argument('-u',  '--username',        type=str, default='root', help='Target device user name. Default is root')
-  ap.add_argument('-p',  '--password',        type=str, default='commitanddeliver', help='Target device password. Default is commitanddeliver')
+  ap.add_argument('-u',  '--username',        type=str, default='sima', help='Target device user name. Default is sima')
+  ap.add_argument('-p',  '--password',        type=str, default='edgeai', help='Target device password. Default is edgeai')
   ap.add_argument('-hn', '--hostname',        type=str, default='192.168.1.20', help='Target device IP address. Default is 192.168.1.20')
   args = ap.parse_args()
 

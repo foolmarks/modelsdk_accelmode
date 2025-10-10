@@ -126,7 +126,7 @@ def implement(args):
     total_ignore_pixels+=ignore_pixels
 
     # write prediction to PNG file
-    _ = cfg.write_image(prediction,labels[i],dest_folder,i,ignore_class)
+    _ = cfg.write_image(prediction,dest_folder,i)
 
   # pixel accuracy is number of pixels that match between prediction and ground truth mask.
   # This pixel-wise accuracy is calculated across all test images 

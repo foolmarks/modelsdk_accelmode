@@ -107,7 +107,7 @@ The run_modelsdk.py script will do the following:
 
 
 ```shell
-python run_modelsdk.py
+python run_modelsdk.py -e
 ```
 
 The images are written into build/quant_pred folder:
@@ -143,7 +143,7 @@ Run the model directly on the target board. This requires the target board to be
 
 
 ```shell
-python run_hardware.py -hn 192.168.1.20
+python run_hardware.py -hn <target_ip_address>
 ```
 
 
@@ -185,7 +185,6 @@ python ./get_fps/network_eval/network_eval.py \
     --model_file_path   ./build/segmenter/segmenter_stage1_mla.elf \
     --mpk_json_path     ./build/segmenter/segmenter_mpk.json \
     --dv_host           192.168.1.20 \
-    --dv_user           sima \
     --image_size        1024 2048 3 \
     --verbose \
     --bypass_tunnel \
@@ -198,6 +197,7 @@ python ./get_fps/network_eval/network_eval.py \
 ```shell
 Running model in MLA-only mode
 Copying the model files to DevKit
+sima@192.168.1.20's password: 
 FPS = 92
 FPS = 93
 FPS = 93

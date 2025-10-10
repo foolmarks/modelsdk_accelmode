@@ -259,7 +259,7 @@ if __name__ == '__main__':
 
     # Extract image dimensions from command line arguments
     H, W, C = args.image_size
-    password = 'edgeai'
+    password = ''
     max_attempts = 10
     
     # Set up SSH tunnel if not bypassed
