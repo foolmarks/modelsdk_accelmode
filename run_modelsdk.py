@@ -67,6 +67,80 @@ ignore_class = cfg.ignore_class
 DIVIDER = cfg.DIVIDER
 
 
+def get_onnx_input_shapes_dtypes(model_path):
+    """
+    Load an ONNX model and return two dictionaries describing its *true* inputs,
+    ignoring any graph initializers (weights/biases).
+
+    Returns:
+        shapes_by_input:
+            { input_name: (d0, d1, ...) } where each dimension (dn) is:
+              - int for fixed sizes,
+              - str for symbolic dimensions (e.g., "batch", "N"),
+              - None if the dimension is present but unknown,
+              - or the entire value can be None if the tensor is rank-unknown.
+        dtypes_by_input:
+            { input_name: dtype } where:
+              - if the ONNX dtype is float32 -> the value is the symbol ScalarType.float32
+              - otherwise -> the original NumPy-style dtype string (e.g., 'float16', 'int64')
+              - or None if it could not be determined.
+    """
+    # Parse and sanity-check the model graph structure.
+    model = onnx.load(model_path)
+    onnx.checker.check_model(model)
+
+    # Filter out parameters that appear as graph inputs.
+    initializer_names = {init.name for init in model.graph.initializer}
+
+    # Plain dictionaries
+    shapes_by_input = {}
+    dtypes_by_input = {}
+
+    # Iterate over declared graph inputs
+    for vi in model.graph.input:
+        if vi.name in initializer_names:
+            continue  # not a real runtime input
+
+        # Only handle tensor inputs
+        if not vi.type.HasField("tensor_type"):
+            continue
+
+        ttype = vi.type.tensor_type
+
+        # ----- dtype -----
+        elem_type = ttype.elem_type
+        np_dtype = onnx.mapping.TENSOR_TYPE_TO_NP_TYPE.get(elem_type, None)
+
+        if np_dtype is None:
+            dtypes_by_input[vi.name] = None
+        else:
+            dtype_name = np_dtype.name  # e.g., 'float32', 'int64'
+            if dtype_name == 'float32':
+                # Use the symbol (not a string) as requested
+                dtypes_by_input[vi.name] = ScalarType.float32
+            else:
+                dtypes_by_input[vi.name] = dtype_name
+
+        # ----- shape -----
+        if not ttype.HasField("shape"):
+            shapes_by_input[vi.name] = None  # rank-unknown
+            continue
+
+        dims_list = []
+        for d in ttype.shape.dim:
+            if d.HasField("dim_value"):
+                dims_list.append(int(d.dim_value))       # fixed dimension
+            elif d.HasField("dim_param"):
+                dims_list.append(d.dim_param)            # symbolic dimension
+            else:
+                dims_list.append(None)                   # unknown dimension
+
+        # Store as immutable tuple
+        shapes_by_input[vi.name] = tuple(dims_list)
+
+    return shapes_by_input, dtypes_by_input
+
+
 # pre-processing for quantizing and test
 def _preprocessing(image):
   '''
@@ -89,28 +163,17 @@ def implement(args):
   os.makedirs(output_path,exist_ok=True)
   print('Results will be written to',output_path,flush=True)
 
-  '''
-  Interrogate ONNX model for input names, shapes
-  '''
-  model = onnx.load(args.model_path)
-  input_names_list=[node.name for node in model.graph.input]
-  input_shapes_list = [tuple(d.dim_value for d in _input.type.tensor_type.shape.dim) for _input in model.graph.input]
-  print('Model inputs:')
-  for n,s in zip(input_names_list,input_shapes_list):
-    print(f' {n}  {s}')
 
   
   '''
   Load the floating-point ONNX model
+  input types & shapes are dictionaries
+  input types dictionary: each key,value pair is an input name (string) and a type
+  input shapes dictionary: each key,value pair is an input name (string) and a shape (tuple)
   '''
-  # input types & shapes are dictionaries
-  # input types dictionary: each key,value pair is an input name (string) and a type
-  # input shapes dictionary: each key,value pair is an input name (string) and a shape (tuple)
-  input_shapes_dict={}
-  input_types_dict={}
-  for n,s in zip(input_names_list,input_shapes_list):
-     input_shapes_dict[n]=s
-     input_types_dict[n]=ScalarType.float32
+  input_shapes_dict, input_types_dict = get_onnx_input_shapes_dtypes(args.model_path)
+  print(input_shapes_dict)
+  print(input_types_dict)
 
      
   # importer parameters
