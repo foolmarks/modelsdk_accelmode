@@ -116,10 +116,10 @@ def get_onnx_input_shapes_dtypes(model_path):
         else:
             dtype_name = np_dtype.name  # e.g., 'float32', 'int64'
             if dtype_name == 'float32':
-                # Use the symbol (not a string) as requested
                 dtypes_by_input[vi.name] = ScalarType.float32
             else:
                 dtypes_by_input[vi.name] = dtype_name
+                print(f'Warning - input {vi.name} is not float32')
 
         # ----- shape -----
         if not ttype.HasField("shape"):
@@ -202,7 +202,7 @@ def implement(args):
 
   # make a list of dictionaries
   # key = input name, value = pre-processed calibration data
-  for input_name in input_names_list:
+  for input_name in input_shapes_dict.keys():
     inputs = dict()
     for i in range(calib_images):
       inputs[input_name] = _preprocessing(data[i])
