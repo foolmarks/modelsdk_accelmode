@@ -62,7 +62,7 @@ cd docker/sima-cli
 
 ## Execute Floating-Point ONNX model ##
 
-ONNXRuntime is included in the SDK docker, so we can run the floating-point model. The run_onnx.py script includes pre- and postprocessing.  The ONNX model is the modified version as described in ONNX model modifications. 
+ONNXRuntime is included in the SDK docker, so we can run the floating-point model. The run_onnx.py script includes pre- and postprocessing.
 
 
 ```shell
