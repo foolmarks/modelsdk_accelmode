@@ -101,7 +101,7 @@ The run_modelsdk.py script will do the following:
 * load the floating-point ONNX model.
 * quantize using calibration data and quantization parameters set using command line arguments.
 * unpack the numpy file containing validation data and then test the quantized model accuracy using pre-processed images.
-* compile and then untar to extract the .lm and .json files (for use in benchmarking on the target board)
+* compile and then untar to extract the .elf and .json files (for use in benchmarking on the target board)
 
 *Note: the quantization is done using default configuration, better results may be obtained with a different configuration.*
 
